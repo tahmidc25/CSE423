@@ -566,18 +566,19 @@ def keyboardListener(key, x, y):
             car_speed = max(car_speed - acceleration * 1.5, -max_speed/2)  # Faster braking in cheat mode
         else:
             car_speed = max(car_speed - acceleration, -max_speed/2)
-    elif key == b'a' and abs(car_speed) > 0.5:  # Turn left (only when moving)
+    elif key == b'a':  # Turn left (even when standing still)
         if cheat_mode:
-            car_angle += turn_speed * (car_speed / max_speed) * 1.5  # Sharper turns in cheat mode
+            car_angle += turn_speed * 1.5  
         else:
-            car_angle += turn_speed * (car_speed / max_speed)
+            car_angle += turn_speed
         if car_angle >= 360:
             car_angle -= 360
-    elif key == b'd' and abs(car_speed) > 0.5:  # Turn right (only when moving)
+
+    elif key == b'd':  # Turn right (even when standing still)
         if cheat_mode:
-            car_angle -= turn_speed * (car_speed / max_speed) * 1.5  # Sharper turns in cheat mode
+            car_angle -= turn_speed * 1.5
         else:
-            car_angle -= turn_speed * (car_speed / max_speed)
+            car_angle -= turn_speed
         if car_angle < 0:
             car_angle += 360
     
@@ -806,3 +807,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
