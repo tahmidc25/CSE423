@@ -1,13 +1,9 @@
-# UI Display
-level_names = {1: "EASY", 2: "MEDIUM", 3: "HARD"}
-camera_names = ["", "Behind Car", "Top-Down", "Side View"]
-    
-
 from OpenGL.GL import *
 from OpenGL.GLUT import *
 from OpenGL.GLU import *
 import math
 import random
+import sys
 
 camera_pos = (0, 500, 500)
 camera_rotation = 0  # For 360-degree ground rotation
@@ -36,6 +32,10 @@ parked_successfully = False
 parking_timer = 0
 required_parking_time = 180  # 3 seconds at 60fps
 level_completed = False
+
+# UI Display
+level_names = {1: "EASY", 2: "MEDIUM", 3: "HARD"}
+camera_names = ["", "Behind Car", "Top-Down", "Side View"]
 
 # Level-based obstacles
 level_obstacles = {
@@ -135,7 +135,10 @@ def get_parking_spot_size():
     else:
         return 35, 22  # Small spots
 
-def draw_text(x, y, text, font=GLUT_BITMAP_HELVETICA_18):
+def draw_text(x, y, text, font=None):
+    from OpenGL.GLUT import GLUT_BITMAP_HELVETICA_18
+    if font is None:
+        font = GLUT_BITMAP_HELVETICA_18
     glColor3f(1, 1, 1)
     glMatrixMode(GL_PROJECTION)
     glPushMatrix()
@@ -244,7 +247,7 @@ def draw_player():
     
     glPopMatrix()
 
-def draw_enemies():
+def draw_obstacles():
     # Draw obstacles for current level
     obstacles = get_current_obstacles()
     
@@ -284,7 +287,7 @@ def draw_enemies():
             glutWireCube(1)
             glPopMatrix()
 
-def draw_bullets():
+def draw_parking_spots():
     # Draw parking spots for current level
     parking_spots = get_current_parking_spots()
     spot_width, spot_depth = get_parking_spot_size()
@@ -435,7 +438,7 @@ def check_parking():
     parked_successfully = False
 
 
-def update_bullets():
+def update_car_physics():
     # Update car physics instead of bullets
     global car_x, car_z, car_speed, collision_detected, reset_timer
     
@@ -467,7 +470,7 @@ def update_bullets():
             collision_detected = True
             reset_timer = 60  # Show collision for 1 second
 
-def update_enemies():
+def draw_collision_effects():
     # Draw collision effect instead of updating enemies
     if collision_detected:
         glPushMatrix()
@@ -482,13 +485,13 @@ def update_enemies():
         glutSolidSphere(80, 8, 8)
         glPopMatrix()
 
-def fire_bullet():
+def start_parking_assist():
     # Not used in parking game
     pass
 
 def cheat_mode_update():
     # Cheat mode features
-    global car_speed, max_speed
+    global car_speed, max_speed, car_angle, car_x, car_z
     
     if cheat_mode:
         # Increase max speed in cheat mode
@@ -730,8 +733,8 @@ def setupCamera():
 
 def idle():
     if not game_over:
-        update_bullets()  # Updates car physics
-        update_enemies()  # Draws collision effects
+        update_car_physics()  # Updates car physics
+        draw_collision_effects()  # Draws collision effects
         cheat_mode_update()  # Handle cheat mode features
         check_parking()  # Check if properly parked
         
@@ -744,12 +747,12 @@ def showScreen():
 
     setupCamera()
     draw_grid()
-    draw_bullets()  # Draws parking spots
-    draw_enemies()  # Draws obstacles
+    draw_parking_spots()  # Draws parking spots
+    draw_obstacles()  # Draws obstacles
     
     if not game_over:
         draw_player()
-        update_enemies()  # Draw collision effects
+        draw_collision_effects()  # Draw collision effects
 
     # UI Display
     camera_names = ["", "Behind Car", "Top-Down", "Side View"]
@@ -765,10 +768,8 @@ def showScreen():
         draw_text(300, 400, "🎉 SUCCESS! Level Completed 🎉")
         draw_text(300, 360, "Press N for Next Level")
         draw_text(300, 330, "Press Q to Quit")
-        # After drawing car and obstacles
-
-        draw_text(400, 400, f"LEVEL {current_level} PARKED SUCCESSFULLY!", GLUT_BITMAP_HELVETICA_18)
-        dddraw_text(400, 370, "Press N: Next Level | P: Cancel/Retry", GLUT_BITMAP_HELVETICA_18)
+        draw_text(400, 400, f"LEVEL {current_level} PARKED SUCCESSFULLY!")
+        draw_text(400, 370, "Press N: Next Level | P: Cancel/Retry")
 
 
     
