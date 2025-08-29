@@ -35,6 +35,7 @@ current_level = 1
 parked_successfully = False
 parking_timer = 0
 required_parking_time = 180  # 3 seconds at 60fps
+level_completed = False
 
 # Level-based obstacles
 level_obstacles = {
@@ -409,43 +410,30 @@ def check_collision(new_x, new_z):
 
 def check_parking():
     """Check if car is properly parked in a parking spot"""
-    global parked_successfully, parking_timer, current_level
+    global parked_successfully, parking_timer, current_level, level_completed, game_over
     
     parking_spots = get_current_parking_spots()
     spot_width, spot_depth = get_parking_spot_size()
     car_width = 60
     car_depth = 25
-    
-    # Check if car is in any parking spot and moving slowly
+
     if abs(car_speed) < 0.5:  # Car must be nearly stopped
         for spot_x, spot_z in parking_spots:
-            # Check if car is within parking spot boundaries
             if (abs(car_x - spot_x) < spot_width - 10 and
                 abs(car_z - spot_z) < spot_depth - 5):
                 
-                # Check if car is reasonably aligned (not too diagonal)
-                if parking_timer == 0:  # Just started parking
-                    parking_timer = 1
-                
                 parking_timer += 1
                 
-                # Successfully parked for required time
                 if parking_timer >= required_parking_time:
                     parked_successfully = True
-                    if current_level < 3:
-                        current_level += 1
-                        init_game()  # Reset for next level
-                        return
-                    else:
-                        # Game completed!
-                        game_over = True
-                        return
-                
-                return  # Still parking, don't reset timer
-    
-    # Reset parking timer if not in parking spot or moving
+                    level_completed = True  # <-- new flag
+                    return
+                return
+
+    # Reset if not in spot or moving
     parking_timer = 0
     parked_successfully = False
+
 
 def update_bullets():
     # Update car physics instead of bullets
@@ -550,7 +538,7 @@ def cheat_mode_update():
             max_speed = 8
 
 def keyboardListener(key, x, y):
-    global car_speed, car_angle, camera_mode, collision_detected, cheat_mode, cheat_vision, current_level
+    global car_speed, car_angle, camera_mode, collision_detected, cheat_mode, cheat_vision, current_level,level_completed
     
     if collision_detected and reset_timer <= 0:
         return
@@ -581,6 +569,19 @@ def keyboardListener(key, x, y):
             car_angle -= turn_speed
         if car_angle < 0:
             car_angle += 360
+    elif key == b'n' and level_completed:  # Next level
+    
+        if current_level < max(level_names.keys()):  # If more levels exist
+            current_level += 1
+            reset_level()
+            level_completed = False
+        else:
+            print("✅ All levels completed!")
+            sys.exit()
+
+    elif key == b'q' and level_completed:  # Quit
+        sys.exit()
+    
     
     # Reset position
     elif key == b'r':
@@ -609,6 +610,13 @@ def keyboardListener(key, x, y):
         if current_level > 1:
             current_level -= 1
             init_game()
+def reset_level():
+    global car_x, car_z, car_angle, car_speed, collision_detected
+    car_x, car_z = 0, 0
+    car_angle = 0
+    car_speed = 0
+    collision_detected = False
+
 
 def specialKeyListener(key, x, y):
     global camera_pos
@@ -752,6 +760,17 @@ def showScreen():
     draw_text(10, 650, f"Ground Rotation: {camera_rotation:.0f}°")
     draw_text(10, 620, f"Cheat Mode: {'ON' if cheat_mode else 'OFF'}")
     draw_text(10, 590, f"Cheat Vision: {'ON' if cheat_vision else 'OFF'}")
+    if level_completed:
+        glColor3f(1, 1, 0)  # Yellow text
+        draw_text(300, 400, "🎉 SUCCESS! Level Completed 🎉")
+        draw_text(300, 360, "Press N for Next Level")
+        draw_text(300, 330, "Press Q to Quit")
+        # After drawing car and obstacles
+
+        draw_text(400, 400, f"LEVEL {current_level} PARKED SUCCESSFULLY!", GLUT_BITMAP_HELVETICA_18)
+        dddraw_text(400, 370, "Press N: Next Level | P: Cancel/Retry", GLUT_BITMAP_HELVETICA_18)
+
+
     
     if collision_detected:
         draw_text(10, 560, "COLLISION! Press R to reset")
@@ -807,4 +826,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
