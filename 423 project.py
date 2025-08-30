@@ -20,6 +20,10 @@ max_speed = 8
 acceleration = 0.5
 friction = 0.9
 turn_speed = 3
+random_obstacles = []
+spawn_timer = 0
+spawn_interval = 180  
+max_random_obstacles = 20 
 
 collision_detected = False
 reset_timer = 0
@@ -80,7 +84,51 @@ level_obstacles = {
         [-250, -120, 30, 30, 20],
     ]
 }
-
+def generate_random_obstacle(level):
+    """Generate a single random obstacle for a level"""
+    if level == 2 and len(random_obstacles) < max_random_obstacles:
+        # Random position (avoiding center area where car starts and parking spots)
+        x = random.randint(-400, 400)
+        z = random.randint(-400, 400)
+        
+        # Avoid spawning too close to the center or parking spots
+        parking_spots = get_current_parking_spots()
+        spot_width, spot_depth = get_parking_spot_size()
+        
+        valid_position = False
+        attempts = 0
+        max_attempts = 20  # Prevent infinite loop
+        
+        while not valid_position and attempts < max_attempts:
+            valid_position = True
+            
+            # Check if too close to center
+            if -150 < x < 150 and -150 < z < 150:
+                valid_position = False
+            
+            # Check if too close to any parking spot
+            for spot_x, spot_z in parking_spots:
+                if (abs(x - spot_x) < spot_width + 30 and 
+                    abs(z - spot_z) < spot_depth + 30):
+                    valid_position = False
+                    break
+            
+            # If not valid, try new position
+            if not valid_position:
+                x = random.randint(-400, 400)
+                z = random.randint(-400, 400)
+                attempts += 1
+        
+        # Only add if we found a valid position
+        if valid_position:
+            # Random size
+            width = random.randint(25, 40)
+            depth = random.randint(25, 40)
+            height = random.randint(20, 35)
+            
+            return [x, z, width, depth, height]
+    
+    return None
 # Level-based parking spots
 level_parking_spots = {
     1: [  # Level 1 - Easy: Large parking spaces, few spots
@@ -103,7 +151,7 @@ level_parking_spots = {
 }
 
 def init_game():
-    global car_x, car_z, car_angle, car_speed, collision_detected, reset_timer, game_over, camera_rotation, cheat_mode, cheat_vision, parked_successfully, parking_timer
+    global car_x, car_z, car_angle, car_speed, collision_detected, reset_timer, game_over, camera_rotation, cheat_mode, cheat_vision, parked_successfully, parking_timer, random_obstacles, spawn_timer
     
     car_x = 0
     car_z = 0
@@ -117,10 +165,21 @@ def init_game():
     cheat_vision = False
     parked_successfully = False
     parking_timer = 0
+    random_obstacles = []  
+    spawn_timer = 0  
+    
+    
+    random.seed(rand_var)   
 
 def get_current_obstacles():
     """Get obstacles for current level"""
-    return level_obstacles.get(current_level, level_obstacles[1])
+    base_obstacles = level_obstacles.get(current_level, level_obstacles[1])
+    
+    # Add random obstacles for level 2
+    if current_level == 2:
+        return base_obstacles + random_obstacles
+    
+    return base_obstacles
 
 def get_current_parking_spots():
     """Get parking spots for current level"""
@@ -732,13 +791,24 @@ def setupCamera():
         glTranslatef(0, 0, 0)
 
 def idle():
+    global spawn_timer, random_obstacles
+    
     if not game_over:
-        update_car_physics()  # Updates car physics
-        draw_collision_effects()  # Draws collision effects
-        cheat_mode_update()  # Handle cheat mode features
-        check_parking()  # Check if properly parked
+        update_car_physics()  
+        draw_collision_effects()  
+        cheat_mode_update()  
+        check_parking()  
         
-    glutPostRedisplay()
+        
+        if current_level == 2:
+            spawn_timer += 1
+            
+            
+            if spawn_timer >= spawn_interval and len(random_obstacles) < max_random_obstacles:
+                new_obstacle = generate_random_obstacle(current_level)
+                if new_obstacle:
+                    random_obstacles.append(new_obstacle)
+                    spawn_timer = 0  
 
 def showScreen():
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
@@ -827,3 +897,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
