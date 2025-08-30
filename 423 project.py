@@ -20,10 +20,11 @@ max_speed = 8
 acceleration = 0.5
 friction = 0.9
 turn_speed = 3
+# Random object spawning
 random_obstacles = []
 spawn_timer = 0
-spawn_interval = 180  
-max_random_obstacles = 20 
+spawn_interval = 180  # 3 seconds at 60fps
+max_random_obstacles = 20 # Maximum of 3 random obstacles at a time
 
 collision_detected = False
 reset_timer = 0
@@ -40,6 +41,7 @@ level_completed = False
 # UI Display
 level_names = {1: "EASY", 2: "MEDIUM", 3: "HARD"}
 camera_names = ["", "Behind Car", "Top-Down", "Side View"]
+
 
 # Level-based obstacles
 level_obstacles = {
@@ -58,8 +60,6 @@ level_obstacles = {
         [300, 0, 40, 100, 25],
         [-300, 0, 40, 100, 25],
         [0, -300, 100, 40, 25],
-        [150, 0, 25, 25, 20],     # Small obstacles
-        [-150, 50, 25, 25, 20],
     ],
     3: [  # Level 3 - Hard: Many obstacles, very tight spaces
         [180, 180, 35, 70, 35],   # Tight parking barriers
@@ -140,6 +140,7 @@ level_parking_spots = {
         [-150, 150], [-250, 150], [-350, 150],
         [150, -150], [250, -150], [350, -150],
         [-150, -150], [-250, -150], [-350, -150],
+        
     ],
     3: [  # Level 3 - Hard: Small, tight parking spaces
         [130, 130], [200, 130], [270, 130], [340, 130],
@@ -165,11 +166,11 @@ def init_game():
     cheat_vision = False
     parked_successfully = False
     parking_timer = 0
-    random_obstacles = []  
-    spawn_timer = 0  
+    random_obstacles = []  # Clear random obstacles
+    spawn_timer = 0  # Reset spawn timer
     
-    
-    random.seed(rand_var)   
+    # Initialize random seed for consistent random obstacles
+    random.seed(rand_var)  # Use your existing rand_var for consistency
 
 def get_current_obstacles():
     """Get obstacles for current level"""
@@ -794,21 +795,23 @@ def idle():
     global spawn_timer, random_obstacles
     
     if not game_over:
-        update_car_physics()  
-        draw_collision_effects()  
-        cheat_mode_update()  
-        check_parking()  
+        update_car_physics()  # Updates car physics
+        draw_collision_effects()  # Draws collision effects
+        cheat_mode_update()  # Handle cheat mode features
+        check_parking()  # Check if properly parked
         
-        
+        # Handle random obstacle spawning for level 2
         if current_level == 2:
             spawn_timer += 1
             
-            
+            # Spawn new obstacle after interval
             if spawn_timer >= spawn_interval and len(random_obstacles) < max_random_obstacles:
                 new_obstacle = generate_random_obstacle(current_level)
                 if new_obstacle:
                     random_obstacles.append(new_obstacle)
-                    spawn_timer = 0  
+                    spawn_timer = 0  # Reset timer
+        
+    glutPostRedisplay()
 
 def showScreen():
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
