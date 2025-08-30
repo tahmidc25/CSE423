@@ -6,12 +6,15 @@ import random
 import sys
 
 camera_pos = (0, 500, 500)
-camera_rotation = 0  # For 360-degree ground rotation
-fovY = 120
+camera_rotation = 0
+fovY = 120                                  
 GRID_LENGTH = 500
 rand_var = 423
+weather_type = 0
+rain_particles = []
+snow_particles = []
 
-# Game state
+            
 car_x = 0
 car_z = 0
 car_angle = 0
@@ -20,57 +23,55 @@ max_speed = 8
 acceleration = 0.5
 friction = 0.9
 turn_speed = 3
-# Random object spawning
+reverse_camera_active = False
 random_obstacles = []
 spawn_timer = 0
-spawn_interval = 180  # 3 seconds at 60fps
-max_random_obstacles = 20 # Maximum of 3 random obstacles at a time
+spawn_interval = 180
+max_random_obstacles = 20
 
 collision_detected = False
 reset_timer = 0
-camera_mode = 1  # 1: behind car, 2: top-down, 3: side view
+camera_mode = 1
 game_over = False
 cheat_mode = False
 cheat_vision = False
 current_level = 1
 parked_successfully = False
 parking_timer = 0
-required_parking_time = 180  # 3 seconds at 60fps
+required_parking_time = 180 
 level_completed = False
 
-# UI Display
 level_names = {1: "EASY", 2: "MEDIUM", 3: "HARD"}
 camera_names = ["", "Behind Car", "Top-Down", "Side View"]
 
 
-# Level-based obstacles
 level_obstacles = {
-    1: [  # Level 1 - Easy: Few obstacles, wide parking spaces
-        [250, 0, 40, 60, 25],     # Simple barriers
+    1: [
+        [250, 0, 40, 60, 25],
         [-250, 0, 40, 60, 25],
         [0, 250, 60, 40, 25],
         [0, -250, 60, 40, 25],
     ],
-    2: [  # Level 2 - Medium: More obstacles, tighter spaces
-        [200, 200, 40, 80, 30],   # Parking barriers
+    2: [
+        [200, 200, 40, 80, 30],
         [-200, 200, 40, 80, 30],
         [200, -200, 40, 80, 30],
         [-200, -200, 40, 80, 30],
-        [0, 300, 100, 40, 25],    # Building walls
+        [0, 300, 100, 40, 25],
         [300, 0, 40, 100, 25],
         [-300, 0, 40, 100, 25],
         [0, -300, 100, 40, 25],
     ],
-    3: [  # Level 3 - Hard: Many obstacles, very tight spaces
-        [180, 180, 35, 70, 35],   # Tight parking barriers
+    3: [
+        [180, 180, 35, 70, 35],
         [-180, 180, 35, 70, 35],
         [180, -180, 35, 70, 35],
         [-180, -180, 35, 70, 35],
-        [0, 320, 120, 35, 30],    # Longer walls
+        [0, 320, 120, 35, 30],         
         [320, 0, 35, 120, 30],
         [-320, 0, 35, 120, 30],
         [0, -320, 120, 35, 30],
-        [100, 100, 25, 25, 25],   # Many small obstacles
+        [100, 100, 25, 25, 25],                         
         [-100, 100, 25, 25, 25],
         [100, -100, 25, 25, 25],
         [-100, -100, 25, 25, 25],
@@ -87,41 +88,41 @@ level_obstacles = {
 def generate_random_obstacle(level):
     """Generate a single random obstacle for a level"""
     if level == 2 and len(random_obstacles) < max_random_obstacles:
-        # Random position (avoiding center area where car starts and parking spots)
+                                                                                   
         x = random.randint(-400, 400)
         z = random.randint(-400, 400)
         
-        # Avoid spawning too close to the center or parking spots
+                                                                 
         parking_spots = get_current_parking_spots()
         spot_width, spot_depth = get_parking_spot_size()
         
         valid_position = False
         attempts = 0
-        max_attempts = 20  # Prevent infinite loop
+        max_attempts = 20                         
         
         while not valid_position and attempts < max_attempts:
             valid_position = True
             
-            # Check if too close to center
+                                          
             if -150 < x < 150 and -150 < z < 150:
                 valid_position = False
             
-            # Check if too close to any parking spot
+                                                    
             for spot_x, spot_z in parking_spots:
                 if (abs(x - spot_x) < spot_width + 30 and 
                     abs(z - spot_z) < spot_depth + 30):
                     valid_position = False
                     break
             
-            # If not valid, try new position
+                                            
             if not valid_position:
                 x = random.randint(-400, 400)
                 z = random.randint(-400, 400)
                 attempts += 1
         
-        # Only add if we found a valid position
+                                               
         if valid_position:
-            # Random size
+                         
             width = random.randint(25, 40)
             depth = random.randint(25, 40)
             height = random.randint(20, 35)
@@ -129,30 +130,30 @@ def generate_random_obstacle(level):
             return [x, z, width, depth, height]
     
     return None
-# Level-based parking spots
+                           
 level_parking_spots = {
-    1: [  # Level 1 - Easy: Large parking spaces, few spots
+    1: [                                                   
         [200, 150], [-200, 150],
         [200, -150], [-200, -150],
     ],
-    2: [  # Level 2 - Medium: Normal sized spaces
+    2: [                                         
         [150, 150], [250, 150], [350, 150],
         [-150, 150], [-250, 150], [-350, 150],
         [150, -150], [250, -150], [350, -150],
         [-150, -150], [-250, -150], [-350, -150],
         
     ],
-    3: [  # Level 3 - Hard: Small, tight parking spaces
+    3: [                                               
         [130, 130], [200, 130], [270, 130], [340, 130],
         [-130, 130], [-200, 130], [-270, 130], [-340, 130],
         [130, -130], [200, -130], [270, -130], [340, -130],
         [-130, -130], [-200, -130], [-270, -130], [-340, -130],
-        [130, 0], [-130, 0], [0, 130], [0, -130],  # Extra tight spots
+        [130, 0], [-130, 0], [0, 130], [0, -130],                     
     ]
 }
 
 def init_game():
-    global car_x, car_z, car_angle, car_speed, collision_detected, reset_timer, game_over, camera_rotation, cheat_mode, cheat_vision, parked_successfully, parking_timer, random_obstacles, spawn_timer
+    global car_x, car_z, car_angle, car_speed, collision_detected, reset_timer, game_over, camera_rotation, cheat_mode, cheat_vision, parked_successfully, parking_timer, random_obstacles, spawn_timer, reverse_camera_active, level_completed
     
     car_x = 0
     car_z = 0
@@ -166,17 +167,22 @@ def init_game():
     cheat_vision = False
     parked_successfully = False
     parking_timer = 0
-    random_obstacles = []  # Clear random obstacles
-    spawn_timer = 0  # Reset spawn timer
+    level_completed = False                                 
+    random_obstacles = []                          
+    spawn_timer = 0                     
+    reverse_camera_active = False
     
-    # Initialize random seed for consistent random obstacles
-    random.seed(rand_var)  # Use your existing rand_var for consistency
+                                  
+    init_weather_particles()
+    
+                                                            
+    random.seed(rand_var)                                              
 
 def get_current_obstacles():
     """Get obstacles for current level"""
     base_obstacles = level_obstacles.get(current_level, level_obstacles[1])
     
-    # Add random obstacles for level 2
+                                      
     if current_level == 2:
         return base_obstacles + random_obstacles
     
@@ -189,11 +195,161 @@ def get_current_parking_spots():
 def get_parking_spot_size():
     """Get parking spot size based on level"""
     if current_level == 1:
-        return 50, 35  # Large spots
+        return 50, 35               
     elif current_level == 2:
-        return 40, 25  # Medium spots  
+        return 40, 25                  
     else:
-        return 35, 22  # Small spots
+        return 35, 22               
+
+def init_weather_particles():
+    """Initialize weather particle systems"""
+    global rain_particles, snow_particles
+    
+    rain_particles = []
+    snow_particles = []
+    
+                           
+    for i in range(100):
+        rain_particles.append({
+            'x': random.uniform(-GRID_LENGTH, GRID_LENGTH),
+            'y': random.uniform(-GRID_LENGTH, GRID_LENGTH),
+            'z': random.uniform(50, 300),
+            'speed': random.uniform(200, 400)
+        })
+    
+                           
+    for i in range(150):
+        snow_particles.append({
+            'x': random.uniform(-GRID_LENGTH, GRID_LENGTH),
+            'y': random.uniform(-GRID_LENGTH, GRID_LENGTH),
+            'z': random.uniform(50, 200),
+            'speed': random.uniform(50, 100),
+            'drift': random.uniform(-20, 20)
+        })
+
+def update_weather():
+    """Update weather effects"""
+    global rain_particles, snow_particles
+    
+                           
+    if weather_type == 1:        
+        for particle in rain_particles:
+            particle['z'] -= particle['speed'] * 0.016                   
+            if particle['z'] < 0:
+                particle['z'] = random.uniform(200, 300)
+                particle['x'] = random.uniform(-GRID_LENGTH, GRID_LENGTH)
+                particle['y'] = random.uniform(-GRID_LENGTH, GRID_LENGTH)
+    
+                           
+    if weather_type == 3:        
+        for particle in snow_particles:
+            particle['z'] -= particle['speed'] * 0.016
+            particle['x'] += particle['drift'] * 0.016
+            if particle['z'] < 0:
+                particle['z'] = random.uniform(150, 200)
+                particle['x'] = random.uniform(-GRID_LENGTH, GRID_LENGTH)
+                particle['y'] = random.uniform(-GRID_LENGTH, GRID_LENGTH)
+
+def draw_weather_effects():
+    """Draw weather particles and atmospheric effects"""
+                 
+    if weather_type == 1:
+        glColor4f(0.7, 0.7, 1.0, 0.6)
+        glBegin(GL_LINES)
+        for particle in rain_particles:
+            glVertex3f(particle['x'], particle['y'], particle['z'])
+            glVertex3f(particle['x'], particle['y'], particle['z'] - 20)
+        glEnd()
+    
+                 
+    elif weather_type == 3:
+        glColor4f(1.0, 1.0, 1.0, 0.8)
+        for particle in snow_particles:
+            glPushMatrix()
+            glTranslatef(particle['x'], particle['y'], particle['z'])
+            glutSolidSphere(2, 4, 4)
+            glPopMatrix()
+    
+                
+    elif weather_type == 2:
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        glColor4f(0.9, 0.9, 0.95, 0.15)             
+        
+                                                      
+        for i in range(3):
+            radius = 150 + i * 75
+            glPushMatrix()
+            glTranslatef(car_x, car_z, 40)
+            glScalef(radius, radius, 60)
+            glutSolidCube(1)
+            glPopMatrix()
+        
+        glDisable(GL_BLEND)
+
+def draw_reverse_parking_lines():
+    """Draw reverse parking guidelines like real car cameras"""
+                                                                        
+    if not ((car_speed < -0.5) or camera_mode == 4):
+        return
+
+                                                            
+    glDisable(GL_DEPTH_TEST)
+
+    angle_rad = math.radians(car_angle)
+
+                                                                     
+    def local_to_world(dx, dy):
+        wx = car_x + dx * math.cos(angle_rad) - dy * math.sin(angle_rad)
+        wy = car_z + dx * math.sin(angle_rad) + dy * math.cos(angle_rad)
+        return wx, wy
+
+                                                              
+    rear_offset = 32
+    z_height = 2
+
+    glLineWidth(3)
+
+                                                              
+    bands = [
+        (40, 20, (1.0, 0.0, 0.0)),             
+        (80, 25, (1.0, 1.0, 0.0)),                 
+        (120, 30, (0.0, 1.0, 0.0)),            
+    ]
+
+    for dist, half_width, color in bands:
+        glColor3f(*color)
+        glBegin(GL_LINES)
+                                                                  
+        base_dx = -(rear_offset + dist)
+                                                       
+        left_x, left_y = local_to_world(base_dx, -half_width)
+        right_x, right_y = local_to_world(base_dx, half_width)
+        glVertex3f(left_x, left_y, z_height)
+        glVertex3f(right_x, right_y, z_height)
+        glEnd()
+
+                                    
+    glColor3f(0.0, 0.8, 1.0)
+    glLineWidth(2)
+    glBegin(GL_LINES)
+    for i in range(5):
+        dist = 20 + i * 25
+        base_dx = -(rear_offset + dist)
+                             
+        seg_start = local_to_world(base_dx - 8, -15)
+        seg_end = local_to_world(base_dx + 8, -15)
+        glVertex3f(seg_start[0], seg_start[1], z_height)
+        glVertex3f(seg_end[0], seg_end[1], z_height)
+                              
+        seg_start = local_to_world(base_dx - 8, 15)
+        seg_end = local_to_world(base_dx + 8, 15)
+        glVertex3f(seg_start[0], seg_start[1], z_height)
+        glVertex3f(seg_end[0], seg_end[1], z_height)
+    glEnd()
+
+                             
+    glEnable(GL_DEPTH_TEST)
 
 def draw_text(x, y, text, font=None):
     from OpenGL.GLUT import GLUT_BITMAP_HELVETICA_18
@@ -218,27 +374,64 @@ def draw_text(x, y, text, font=None):
     glPopMatrix()
     glMatrixMode(GL_MODELVIEW)
 
+def draw_ui_panel():
+    """Draw black UI panel at bottom of screen"""
+    glDisable(GL_DEPTH_TEST)
+    glMatrixMode(GL_PROJECTION)
+    glPushMatrix()
+    glLoadIdentity()
+    gluOrtho2D(0, 1000, 0, 800)
+    
+    glMatrixMode(GL_MODELVIEW)
+    glPushMatrix()
+    glLoadIdentity()
+    
+                                 
+    glColor3f(0, 0, 0)
+    glBegin(GL_QUADS)
+    glVertex2f(0, 0)
+    glVertex2f(1000, 0)
+    glVertex2f(1000, 200)                
+    glVertex2f(0, 200)
+    glEnd()
+    
+                 
+    glColor3f(0.3, 0.3, 0.3)
+    glLineWidth(2)
+    glBegin(GL_LINE_LOOP)
+    glVertex2f(0, 200)
+    glVertex2f(1000, 200)
+    glVertex2f(1000, 0)
+    glVertex2f(0, 0)
+    glEnd()
+    
+    glPopMatrix()
+    glMatrixMode(GL_PROJECTION)
+    glPopMatrix()
+    glMatrixMode(GL_MODELVIEW)
+    glEnable(GL_DEPTH_TEST)
+
 def draw_player():
-    # Draw the car
+                  
     glPushMatrix()
     
     glTranslatef(car_x, car_z, 0)
     glRotatef(car_angle, 0, 0, 1)
     
-    # Car body (main chassis) - different color in cheat mode
+                                                             
     if cheat_mode:
-        glColor3f(0.0, 1.0, 0.8)  # Cyan car in cheat mode
+        glColor3f(0.0, 1.0, 0.8)                          
     else:
-        glColor3f(0.8, 0.2, 0.2)  # Red car normally
+        glColor3f(0.8, 0.2, 0.2)                    
     glPushMatrix()
     glTranslatef(0, 0, 15)
     glScalef(60, 25, 15)
     glutSolidCube(1)
     glPopMatrix()
     
-    # Car roof - also changes color in cheat mode
+                                                 
     if cheat_mode:
-        glColor3f(0.0, 0.9, 0.9)  # Bright cyan roof
+        glColor3f(0.0, 0.9, 0.9)                    
     else:
         glColor3f(0.9, 0.3, 0.3)
     glPushMatrix()
@@ -247,7 +440,7 @@ def draw_player():
     glutSolidCube(1)
     glPopMatrix()
     
-    # Front bumper
+                  
     glColor3f(0.7, 0.7, 0.7)
     glPushMatrix()
     glTranslatef(32, 0, 10)
@@ -255,46 +448,46 @@ def draw_player():
     glutSolidCube(1)
     glPopMatrix()
     
-    # Rear bumper
+                 
     glPushMatrix()
     glTranslatef(-32, 0, 10)
     glScalef(4, 30, 8)
     glutSolidCube(1)
     glPopMatrix()
     
-    # Wheels
-    glColor3f(0.1, 0.1, 0.1)  # Black wheels
+            
+    glColor3f(0.1, 0.1, 0.1)                
     
-    # Front left wheel
+                      
     glPushMatrix()
     glTranslatef(20, 18, 8)
     glRotatef(90, 1, 0, 0)
     gluCylinder(gluNewQuadric(), 8, 8, 6, 8, 8)
     glPopMatrix()
     
-    # Front right wheel
+                       
     glPushMatrix()
     glTranslatef(20, -18, 8)
     glRotatef(90, 1, 0, 0)
     gluCylinder(gluNewQuadric(), 8, 8, 6, 8, 8)
     glPopMatrix()
     
-    # Rear left wheel
+                     
     glPushMatrix()
     glTranslatef(-20, 18, 8)
     glRotatef(90, 1, 0, 0)
     gluCylinder(gluNewQuadric(), 8, 8, 6, 8, 8)
     glPopMatrix()
     
-    # Rear right wheel
+                      
     glPushMatrix()
     glTranslatef(-20, -18, 8)
     glRotatef(90, 1, 0, 0)
     gluCylinder(gluNewQuadric(), 8, 8, 6, 8, 8)
     glPopMatrix()
     
-    # Headlights
-    glColor3f(1, 1, 0.8)  # Yellow lights
+                
+    glColor3f(1, 1, 0.8)                 
     glPushMatrix()
     glTranslatef(30, 10, 15)
     glutSolidSphere(3, 8, 8)
@@ -305,10 +498,23 @@ def draw_player():
     glutSolidSphere(3, 8, 8)
     glPopMatrix()
     
+                                    
+    if car_speed < -0.5:
+        glColor3f(1, 1, 1)                        
+        glPushMatrix()
+        glTranslatef(-30, 8, 15)
+        glutSolidSphere(2, 8, 8)
+        glPopMatrix()
+        
+        glPushMatrix()
+        glTranslatef(-30, -8, 15)
+        glutSolidSphere(2, 8, 8)
+        glPopMatrix()
+    
     glPopMatrix()
 
 def draw_obstacles():
-    # Draw obstacles for current level
+                                      
     obstacles = get_current_obstacles()
     
     for obstacle in obstacles:
@@ -317,27 +523,27 @@ def draw_obstacles():
         glPushMatrix()
         glTranslatef(x, z, height/2)
         
-        # Different colors for different obstacle types based on level
+                                                                      
         if current_level == 1:
-            glColor3f(0.8, 0.8, 0.2)  # Yellow for easy level
+            glColor3f(0.8, 0.8, 0.2)                         
         elif current_level == 2:
             if cheat_mode:
-                glColor3f(1, 0.5, 1)  # Pink in cheat mode
+                glColor3f(1, 0.5, 1)                      
             else:
-                glColor3f(0.8, 0.4, 0.2)  # Orange for medium level
-        else:  # Level 3
+                glColor3f(0.8, 0.4, 0.2)                           
+        else:           
             if cheat_mode:
-                glColor3f(1, 0.2, 0.2)  # Bright red in cheat mode
+                glColor3f(1, 0.2, 0.2)                            
             else:
-                glColor3f(0.6, 0.1, 0.1)  # Dark red for hard level
+                glColor3f(0.6, 0.1, 0.1)                           
             
         glScalef(width, depth, height)
         glutSolidCube(1)
         glPopMatrix()
     
-    # Draw obstacle outlines in cheat mode for better visibility
+                                                                
     if cheat_mode:
-        glColor3f(1, 1, 1)  # White outlines
+        glColor3f(1, 1, 1)                  
         glLineWidth(3)
         for obstacle in obstacles:
             x, z, width, depth, height = obstacle
@@ -348,21 +554,21 @@ def draw_obstacles():
             glPopMatrix()
 
 def draw_parking_spots():
-    # Draw parking spots for current level
+                                          
     parking_spots = get_current_parking_spots()
     spot_width, spot_depth = get_parking_spot_size()
     
     if cheat_mode:
-        glColor3f(0, 1, 0)  # Green parking lines in cheat mode
-        glLineWidth(5)  # Thicker lines
+        glColor3f(0, 1, 0)                                     
+        glLineWidth(5)                 
     else:
-        # Different colors for different levels
+                                               
         if current_level == 1:
-            glColor3f(0, 1, 0)  # Green for easy level
+            glColor3f(0, 1, 0)                        
         elif current_level == 2:
-            glColor3f(1, 1, 0)  # Yellow for medium level  
+            glColor3f(1, 1, 0)                             
         else:
-            glColor3f(1, 0.5, 0)  # Orange for hard level
+            glColor3f(1, 0.5, 0)                         
         glLineWidth(3)
     
     for spot_x, spot_z in parking_spots:
@@ -373,7 +579,7 @@ def draw_parking_spots():
         glVertex3f(spot_x - spot_width, spot_z + spot_depth, 1)
         glEnd()
         
-        # Draw level number in parking spots
+                                            
         glPushMatrix()
         glTranslatef(spot_x, spot_z, 2)
         if current_level == 1:
@@ -396,11 +602,11 @@ def draw_grid():
             square_x = (i + GRID_LENGTH) // square_size
             square_z = (j + GRID_LENGTH) // square_size
             
-            # Chess pattern
+                           
             if (square_x + square_z) % 2 == 0:
-                glColor3f(0.3, 0.3, 0.3)  # Dark gray
+                glColor3f(0.3, 0.3, 0.3)             
             else:
-                glColor3f(0.5, 0.5, 0.5)  # Light gray
+                glColor3f(0.5, 0.5, 0.5)              
             
             glVertex3f(i, j, 0)
             glVertex3f(i + square_size, j, 0)
@@ -409,10 +615,10 @@ def draw_grid():
     
     glEnd()
     
-    # Boundary walls
+                    
     wall_height = 50
     
-    # North wall
+                
     glColor3f(0.2, 0.2, 0.8)  
     glPushMatrix()
     glTranslatef(0, GRID_LENGTH, wall_height/2)
@@ -420,7 +626,7 @@ def draw_grid():
     glutSolidCube(1)
     glPopMatrix()
     
-    # South wall  
+                  
     glColor3f(0.2, 0.8, 0.2)  
     glPushMatrix()
     glTranslatef(0, -GRID_LENGTH, wall_height/2)
@@ -428,7 +634,7 @@ def draw_grid():
     glutSolidCube(1)
     glPopMatrix()
     
-    # East wall 
+                
     glColor3f(0.8, 0.2, 0.2)  
     glPushMatrix()
     glTranslatef(GRID_LENGTH, 0, wall_height/2)
@@ -436,7 +642,7 @@ def draw_grid():
     glutSolidCube(1)
     glPopMatrix()
     
-    # West wall 
+                
     glColor3f(0.8, 0.8, 0.2)  
     glPushMatrix()
     glTranslatef(-GRID_LENGTH, 0, wall_height/2)
@@ -447,24 +653,24 @@ def draw_grid():
 def check_collision(new_x, new_z):
     """Check if car collides with obstacles or walls"""
     
-    # No collision in cheat mode
+                                
     if cheat_mode:
         return False
     
     car_width = 60
     car_depth = 25
     
-    # Check boundary walls
+                          
     if (abs(new_x) > GRID_LENGTH - car_width/2 or 
         abs(new_z) > GRID_LENGTH - car_depth/2):
         return True
     
-    # Check obstacles for current level
+                                       
     obstacles = get_current_obstacles()
     for obstacle in obstacles:
         obs_x, obs_z, obs_width, obs_depth, obs_height = obstacle
         
-        # Simple bounding box collision
+                                       
         if (abs(new_x - obs_x) < (car_width + obs_width)/2 and
             abs(new_z - obs_z) < (car_depth + obs_depth)/2):
             return True
@@ -480,7 +686,7 @@ def check_parking():
     car_width = 60
     car_depth = 25
 
-    if abs(car_speed) < 0.5:  # Car must be nearly stopped
+    if abs(car_speed) < 0.5:                              
         for spot_x, spot_z in parking_spots:
             if (abs(car_x - spot_x) < spot_width - 10 and
                 abs(car_z - spot_z) < spot_depth - 5):
@@ -489,55 +695,65 @@ def check_parking():
                 
                 if parking_timer >= required_parking_time:
                     parked_successfully = True
-                    level_completed = True  # <-- new flag
+                    level_completed = True                
                     return
                 return
 
-    # Reset if not in spot or moving
+                                    
     parking_timer = 0
     parked_successfully = False
 
 
 def update_car_physics():
-    # Update car physics instead of bullets
-    global car_x, car_z, car_speed, collision_detected, reset_timer
+                                           
+    global car_x, car_z, car_speed, collision_detected, reset_timer, reverse_camera_active
     
     if reset_timer > 0:
         reset_timer -= 1
         collision_detected = reset_timer > 0
         return
     
-    # Apply friction (less friction in cheat mode for smoother movement)
-    if cheat_mode:
-        car_speed *= 0.95  # Less friction in cheat mode
-    else:
-        car_speed *= friction
+                                     
+    weather_friction_modifier = 1.0
+    if weather_type == 1:        
+        weather_friction_modifier = 0.85                 
+    elif weather_type == 3:        
+        weather_friction_modifier = 0.7                  
     
-    # Calculate new position
+                                                                        
+    if cheat_mode:
+        car_speed *= 0.95                               
+    else:
+        car_speed *= friction * weather_friction_modifier
+    
+                                             
+    reverse_camera_active = car_speed < -1.0
+    
+                            
     if abs(car_speed) > 0.1:
         angle_rad = math.radians(car_angle)
         new_x = car_x + math.cos(angle_rad) * car_speed
         new_z = car_z + math.sin(angle_rad) * car_speed
         
-        # Check for collisions
+                              
         if not check_collision(new_x, new_z):
             car_x = new_x
             car_z = new_z
             collision_detected = False
         else:
-            # Stop the car and show collision
+                                             
             car_speed = 0
             collision_detected = True
-            reset_timer = 60  # Show collision for 1 second
+            reset_timer = 60                               
 
 def draw_collision_effects():
-    # Draw collision effect instead of updating enemies
+                                                       
     if collision_detected:
         glPushMatrix()
         glTranslatef(car_x, car_z, 40)
         
-        # Flashing red effect
-        if (reset_timer // 5) % 2 == 0:  # Flash every 5 frames
+                             
+        if (reset_timer // 5) % 2 == 0:                        
             glColor3f(1, 0, 0)
         else:
             glColor3f(1, 0.5, 0.5)
@@ -546,22 +762,22 @@ def draw_collision_effects():
         glPopMatrix()
 
 def start_parking_assist():
-    # Not used in parking game
+                              
     pass
 
 def cheat_mode_update():
-    # Cheat mode features
+                         
     global car_speed, max_speed, car_angle, car_x, car_z
     
     if cheat_mode:
-        # Increase max speed in cheat mode
+                                          
         if max_speed < 15:
             max_speed = 15
         
-        # Auto-park feature - move towards nearest parking spot if close enough
+                                                                               
         parking_spots = get_current_parking_spots()
         
-        # Find closest parking spot
+                                   
         closest_distance = float('inf')
         closest_spot = None
         
@@ -571,18 +787,18 @@ def cheat_mode_update():
                 closest_distance = distance
                 closest_spot = (spot_x, spot_z)
         
-        # If very close to a parking spot (within 100 units) and moving slowly, auto-align
+                                                                                          
         if closest_spot and closest_distance < 100 and abs(car_speed) < 2:
             target_x, target_z = closest_spot
             
-            # Calculate angle to parking spot
+                                             
             dx = target_x - car_x
             dz = target_z - car_z
             
-            if abs(dx) > 5 or abs(dz) > 5:  # If not perfectly aligned
+            if abs(dx) > 5 or abs(dz) > 5:                            
                 target_angle = math.degrees(math.atan2(dz, dx))
                 
-                # Gradually adjust car angle towards parking spot
+                                                                 
                 angle_diff = target_angle - car_angle
                 if angle_diff > 180:
                     angle_diff -= 360
@@ -590,86 +806,105 @@ def cheat_mode_update():
                     angle_diff += 360
                 
                 if abs(angle_diff) > 2:
-                    car_angle += angle_diff * 0.1  # Smooth auto-align
+                    car_angle += angle_diff * 0.1
                     if car_angle >= 360:
                         car_angle -= 360
                     elif car_angle < 0:
                         car_angle += 360
     else:
-        # Reset max speed when cheat mode is off
         if max_speed > 8:
             max_speed = 8
 
 def keyboardListener(key, x, y):
-    global car_speed, car_angle, camera_mode, collision_detected, cheat_mode, cheat_vision, current_level,level_completed
+    global car_speed, car_angle, camera_mode, collision_detected, cheat_mode, cheat_vision, current_level,level_completed, weather_type
     
     if collision_detected and reset_timer <= 0:
         return
-    
-    # Car movement controls
-    if key == b'w':  # Forward
+
+    if key == b'w':
         if cheat_mode:
-            car_speed = min(car_speed + acceleration * 1.5, max_speed)  # Faster acceleration in cheat mode
+            car_speed = min(car_speed + acceleration * 1.5, max_speed)
         else:
-            car_speed = min(car_speed + acceleration, max_speed)
-    elif key == b's':  # Backward
+
+            weather_accel_modifier = 1.0
+            if weather_type == 1:
+                weather_accel_modifier = 0.9
+            elif weather_type == 3:
+                weather_accel_modifier = 0.8
+            car_speed = min(car_speed + acceleration * weather_accel_modifier, max_speed)
+    elif key == b's':
         if cheat_mode:
-            car_speed = max(car_speed - acceleration * 1.5, -max_speed/2)  # Faster braking in cheat mode
+            car_speed = max(car_speed - acceleration * 1.5, -max_speed/2)
         else:
-            car_speed = max(car_speed - acceleration, -max_speed/2)
-    elif key == b'a':  # Turn left (even when standing still)
+            weather_accel_modifier = 1.0
+            if weather_type == 1:
+                weather_accel_modifier = 0.9
+            elif weather_type == 3:
+                weather_accel_modifier = 0.8
+            car_speed = max(car_speed - acceleration * weather_accel_modifier, -max_speed/2)
+    elif key == b'a':
+        turn_modifier = 1.0
+        if weather_type == 1: 
+            turn_modifier = 1.2
+        elif weather_type == 3: 
+            turn_modifier = 0.8
+            
         if cheat_mode:
-            car_angle += turn_speed * 1.5  
+            car_angle += turn_speed * 1.5 * turn_modifier
         else:
-            car_angle += turn_speed
+            car_angle += turn_speed * turn_modifier
         if car_angle >= 360:
             car_angle -= 360
 
-    elif key == b'd':  # Turn right (even when standing still)
+    elif key == b'd':
+        turn_modifier = 1.0
+        if weather_type == 1: 
+            turn_modifier = 1.2
+        elif weather_type == 3: 
+            turn_modifier = 0.8
+            
         if cheat_mode:
-            car_angle -= turn_speed * 1.5
+            car_angle -= turn_speed * 1.5 * turn_modifier
         else:
-            car_angle -= turn_speed
+            car_angle -= turn_speed * turn_modifier
         if car_angle < 0:
             car_angle += 360
-    elif key == b'n' and level_completed:  # Next level
+    elif key == b'n' and level_completed: 
     
-        if current_level < max(level_names.keys()):  # If more levels exist
+        if current_level < max(level_names.keys()):
             current_level += 1
             reset_level()
             level_completed = False
         else:
-            print("✅ All levels completed!")
+            print("All levels completed!")
             sys.exit()
 
-    elif key == b'q' and level_completed:  # Quit
+    elif key == b'q' and level_completed:
         sys.exit()
     
     
-    # Reset position
     elif key == b'r':
         init_game()
     
-    # Camera controls
     elif key == b'1':
-        camera_mode = 1  # Behind car
+        camera_mode = 1              
     elif key == b'2':
-        camera_mode = 2  # Top-down
+        camera_mode = 2            
     elif key == b'3':
-        camera_mode = 3  # Side view
+        camera_mode = 4                                       
     
-    # Cheat mode controls
     elif key == b'c':
         cheat_mode = not cheat_mode
     elif key == b'v':
         cheat_vision = not cheat_vision
     
-    # Level controls (for testing - can be removed)
-    elif key == b'n':  # Next level (for testing)
+    elif key == b'e':
+        weather_type = (weather_type + 1) % 4
+    elif key == b'n':
         if current_level < 3:
             current_level += 1
             init_game()
-    elif key == b'p':  # Previous level (for testing)
+    elif key == b'p':
         if current_level > 1:
             current_level -= 1
             init_game()
@@ -683,8 +918,6 @@ def reset_level():
 
 def specialKeyListener(key, x, y):
     global camera_pos
-    
-    # Only allow camera movement in third person mode
     if camera_mode != 1:
         return
         
@@ -718,15 +951,14 @@ def specialKeyListener(key, x, y):
 
 def mouseListener(button, state, x, y):
     global camera_rotation
-    
-    # Rotate ground 360 degrees with mouse buttons
+                                                                  
     if button == GLUT_LEFT_BUTTON and state == GLUT_DOWN:
-        camera_rotation += 15  # Rotate left
+        camera_rotation += 5                     
         if camera_rotation >= 360:
             camera_rotation -= 360
     
     elif button == GLUT_RIGHT_BUTTON and state == GLUT_DOWN:
-        camera_rotation -= 15  # Rotate right
+        camera_rotation -= 5                     
         if camera_rotation < 0:
             camera_rotation += 360
 
@@ -735,81 +967,83 @@ def setupCamera():
     
     glMatrixMode(GL_PROJECTION)
     glLoadIdentity()
-    
-    # Wider field of view in cheat vision mode
     if cheat_vision and cheat_mode:
-        gluPerspective(90, 1.25, 0.1, 1500)  # Wider FOV
+        gluPerspective(90, 1.25, 0.1, 1500)
     else:
         gluPerspective(fovY, 1.25, 0.1, 1500)
         
     glMatrixMode(GL_MODELVIEW)
     glLoadIdentity()
     
-    if camera_mode == 1:  # Behind car view
+                                                                        
+    effective_camera_mode = camera_mode
+    if reverse_camera_active and camera_mode == 1:
+        effective_camera_mode = 4                               
+    
+    if effective_camera_mode == 1:                   
         angle_rad = math.radians(car_angle)
         
         if cheat_vision and cheat_mode:
-            # Higher camera position for better overview
             cam_x = car_x - math.cos(angle_rad) * 200
             cam_z = car_z - math.sin(angle_rad) * 200
-            cam_y = 120  # Higher camera
+            cam_y = 120
         else:
             cam_x = car_x - math.cos(angle_rad) * 150
             cam_z = car_z - math.sin(angle_rad) * 150
-            cam_y = 80  # Normal height
-        
+            cam_y = 80 
         target_x = car_x + math.cos(angle_rad) * 50
         target_z = car_z + math.sin(angle_rad) * 50
         
         gluLookAt(cam_x, cam_z, cam_y,
                   target_x, target_z, 15,
                   0, 0, 1)
+        
+                                                 
+        glRotatef(camera_rotation, 0, 0, 1)
                   
-    elif camera_mode == 2:  # Top-down view
+    elif effective_camera_mode == 2:                 
         if cheat_vision and cheat_mode:
-            gluLookAt(car_x, car_z, 600,  # Even higher for cheat vision
+            gluLookAt(car_x, car_z, 600,  
                       car_x, car_z, 0,
                       0, 1, 0)
         else:
             gluLookAt(car_x, car_z, 400,
                       car_x, car_z, 0,
                       0, 1, 0)
-                  
-    elif camera_mode == 3:  # Side view
-        if cheat_vision and cheat_mode:
-            gluLookAt(car_x + 250, car_z, 120,  # Further and higher for cheat vision
-                      car_x, car_z, 15,
-                      0, 0, 1)
-        else:
-            gluLookAt(car_x + 200, car_z, 100,
-                      car_x, car_z, 15,
-                      0, 0, 1)
     
-    # Apply 360-degree rotation for third person perspective
-    if camera_mode == 1:  # Only rotate in behind car mode for 360 view
-        glTranslatef(0, 0, 0)
-        glRotatef(camera_rotation, 0, 0, 1)
-        glTranslatef(0, 0, 0)
+    elif effective_camera_mode == 4:                                              
+        angle_rad = math.radians(car_angle)
+        
+                                                        
+        cam_x = car_x + math.cos(angle_rad) * 120
+        cam_z = car_z + math.sin(angle_rad) * 120
+        cam_y = 60
+        
+                                          
+        target_x = car_x - math.cos(angle_rad) * 50
+        target_z = car_z - math.sin(angle_rad) * 50
+        
+        gluLookAt(cam_x, cam_z, cam_y,
+                  target_x, target_z, 15,
+                  0, 0, 1)
 
 def idle():
     global spawn_timer, random_obstacles
     
     if not game_over:
-        update_car_physics()  # Updates car physics
-        draw_collision_effects()  # Draws collision effects
-        cheat_mode_update()  # Handle cheat mode features
-        check_parking()  # Check if properly parked
-        
-        # Handle random obstacle spawning for level 2
+        update_car_physics()
+        draw_collision_effects() 
+        cheat_mode_update()
+        check_parking()
+        update_weather()
+    
         if current_level == 2:
             spawn_timer += 1
-            
-            # Spawn new obstacle after interval
             if spawn_timer >= spawn_interval and len(random_obstacles) < max_random_obstacles:
                 new_obstacle = generate_random_obstacle(current_level)
                 if new_obstacle:
                     random_obstacles.append(new_obstacle)
-                    spawn_timer = 0  # Reset timer
+                    spawn_timer = 0
         
     glutPostRedisplay()
 
@@ -820,47 +1054,68 @@ def showScreen():
 
     setupCamera()
     draw_grid()
-    draw_parking_spots()  # Draws parking spots
-    draw_obstacles()  # Draws obstacles
+    draw_parking_spots() 
+    draw_obstacles()
     
     if not game_over:
         draw_player()
-        draw_collision_effects()  # Draw collision effects
+        draw_collision_effects()
+    
+                          
+    draw_weather_effects()
+    
+                                                        
+    draw_reverse_parking_lines()
+    
+                   
+    draw_ui_panel()
 
-    # UI Display
-    camera_names = ["", "Behind Car", "Top-Down", "Side View"]
-    draw_text(10, 770, f"Camera: {camera_names[camera_mode]} (1-3)")
-    draw_text(10, 740, f"Speed: {abs(car_speed):.1f}")
-    draw_text(10, 710, f"Position: ({car_x:.0f}, {car_z:.0f})")
-    draw_text(10, 680, f"Angle: {car_angle:.0f}°")
-    draw_text(10, 650, f"Ground Rotation: {camera_rotation:.0f}°")
-    draw_text(10, 620, f"Cheat Mode: {'ON' if cheat_mode else 'OFF'}")
-    draw_text(10, 590, f"Cheat Vision: {'ON' if cheat_vision else 'OFF'}")
+                                                    
+    weather_names = ["Clear", "Rain", "Fog", "Snow"]
+    camera_names = ["", "Behind Car", "Top-Down", "Reverse Camera"]                         
+    
+                 
+    draw_text(20, 170, f"Level: {current_level} ({level_names.get(current_level, 'Unknown')})")
+    draw_text(20, 150, f"Camera: {camera_names[camera_mode] if camera_mode <= 3 else 'Reverse'} (1-3)")
+    if reverse_camera_active:
+        draw_text(20, 130, "🔄 REVERSE CAMERA ACTIVE")
+    else:
+        draw_text(20, 130, f"Speed: {abs(car_speed):.1f}")
+    draw_text(20, 110, f"Position: ({car_x:.0f}, {car_z:.0f})")
+    draw_text(20, 90, f"Angle: {car_angle:.0f}°")
+    
+                     
+    draw_text(300, 170, f"Weather: {weather_names[weather_type]} (E to change)")
+    draw_text(300, 150, f"Ground Rotation: {camera_rotation:.0f}°")
+    draw_text(300, 130, f"Cheat Mode: {'ON' if cheat_mode else 'OFF'} (C)")
+    draw_text(300, 110, f"Cheat Vision: {'ON' if cheat_vision else 'OFF'} (V)")
+    draw_text(300, 90, f"Random Obstacles: {len(random_obstacles)}")
+    
+                  
+    if collision_detected:
+        draw_text(600, 170, "⚠️ COLLISION! Press R to reset")
+    elif cheat_mode:
+        draw_text(600, 170, "✨ CHEAT ACTIVE: No collision!")
+    else:
+        draw_text(600, 170, "Status: Normal")
+    
+    draw_text(600, 150, f"Parking Timer: {parking_timer}")
+    draw_text(600, 130, f"Level Completed: {'YES' if level_completed else 'NO'}")
+    draw_text(600, 110, f"Car in Reverse: {'YES' if car_speed < -0.5 else 'NO'}")
+    draw_text(600, 90, f"Parked: {'YES' if parked_successfully else 'NO'}")
+    
+                     
     if level_completed:
-        glColor3f(1, 1, 0)  # Yellow text
+        glColor3f(1, 1, 0)
         draw_text(300, 400, "🎉 SUCCESS! Level Completed 🎉")
         draw_text(300, 360, "Press N for Next Level")
         draw_text(300, 330, "Press Q to Quit")
-        draw_text(400, 400, f"LEVEL {current_level} PARKED SUCCESSFULLY!")
-        draw_text(400, 370, "Press N: Next Level | P: Cancel/Retry")
 
-
-    
-    if collision_detected:
-        draw_text(10, 560, "COLLISION! Press R to reset")
-    
-    if cheat_mode:
-        draw_text(10, 530, "CHEAT ACTIVE: No collision, faster car!")
-    
-    # Controls help
-    draw_text(10, 210, "Controls:")
-    draw_text(10, 180, "W/S: Forward/Backward")
-    draw_text(10, 150, "A/D: Turn Left/Right")
-    draw_text(10, 120, "1/2/3: Camera Views")
-    draw_text(10, 90, "C: Toggle Cheat Mode")
-    draw_text(10, 60, "V: Toggle Cheat Vision")
-    draw_text(10, 30, "R: Reset Position")
-    draw_text(250, 60, "Mouse: Rotate Ground 360°")
+                                            
+    glColor3f(0.8, 0.8, 0.8)                           
+    draw_text(20, 50, "WASD: Move/Turn | 1-3: Cameras (3=Reverse) | E: Weather | R: Reset")
+    draw_text(20, 30, "C: Cheat | V: Enhanced Vision (wider view) | Mouse: Smooth Ground Rotation")
+    draw_text(20, 10, "Camera 1: Behind Car | Camera 2: Top-Down | Camera 3: Reverse + Parking Lines")
 
     glutSwapBuffers()
 
@@ -871,11 +1126,8 @@ def main():
     glutInitWindowPosition(0, 0)
     wind = glutCreateWindow(b"Car Parking 3D - Practice Game")
   
-    # Enable depth testing
     glEnable(GL_DEPTH_TEST)
     glDepthFunc(GL_LESS)
-    
-    # Set background color
     glClearColor(0.1, 0.1, 0.2, 1.0)
     
     init_game()
