@@ -179,7 +179,6 @@ def init_game():
     random.seed(rand_var)                                              
 
 def get_current_obstacles():
-    """Get obstacles for current level"""
     base_obstacles = level_obstacles.get(current_level, level_obstacles[1])
     
                                       
@@ -189,11 +188,9 @@ def get_current_obstacles():
     return base_obstacles
 
 def get_current_parking_spots():
-    """Get parking spots for current level"""
     return level_parking_spots.get(current_level, level_parking_spots[1])
 
 def get_parking_spot_size():
-    """Get parking spot size based on level"""
     if current_level == 1:
         return 50, 35               
     elif current_level == 2:
@@ -202,7 +199,6 @@ def get_parking_spot_size():
         return 35, 22               
 
 def init_weather_particles():
-    """Initialize weather particle systems"""
     global rain_particles, snow_particles
     
     rain_particles = []
@@ -228,20 +224,16 @@ def init_weather_particles():
         })
 
 def update_weather():
-    """Update weather effects"""
     global rain_particles, snow_particles
     
-                           
-    if weather_type == 1:        
+    if weather_type == 1:
         for particle in rain_particles:
-            particle['z'] -= particle['speed'] * 0.016                   
+            particle['z'] -= particle['speed'] * 0.016
             if particle['z'] < 0:
-                particle['z'] = random.uniform(200, 300)
+                particle['z'] = random.uniform(150, 300)
                 particle['x'] = random.uniform(-GRID_LENGTH, GRID_LENGTH)
                 particle['y'] = random.uniform(-GRID_LENGTH, GRID_LENGTH)
-    
-                           
-    if weather_type == 3:        
+    elif weather_type == 3:
         for particle in snow_particles:
             particle['z'] -= particle['speed'] * 0.016
             particle['x'] += particle['drift'] * 0.016
@@ -251,44 +243,29 @@ def update_weather():
                 particle['y'] = random.uniform(-GRID_LENGTH, GRID_LENGTH)
 
 def draw_weather_effects():
-    """Draw weather particles and atmospheric effects"""
-                 
+    
     if weather_type == 1:
-        glColor4f(0.7, 0.7, 1.0, 0.6)
+        glColor3f(0.7, 0.7, 1.0)
         glBegin(GL_LINES)
         for particle in rain_particles:
             glVertex3f(particle['x'], particle['y'], particle['z'])
             glVertex3f(particle['x'], particle['y'], particle['z'] - 20)
         glEnd()
     
-                 
+    
     elif weather_type == 3:
-        glColor4f(1.0, 1.0, 1.0, 0.8)
+        glColor3f(1.0, 1.0, 1.0)
         for particle in snow_particles:
             glPushMatrix()
             glTranslatef(particle['x'], particle['y'], particle['z'])
             glutSolidSphere(2, 4, 4)
             glPopMatrix()
     
-                
+    
     elif weather_type == 2:
-        glEnable(GL_BLEND)
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-        glColor4f(0.9, 0.9, 0.95, 0.15)             
-        
-                                                      
-        for i in range(3):
-            radius = 150 + i * 75
-            glPushMatrix()
-            glTranslatef(car_x, car_z, 40)
-            glScalef(radius, radius, 60)
-            glutSolidCube(1)
-            glPopMatrix()
-        
-        glDisable(GL_BLEND)
+        return  # fog removed
 
 def draw_reverse_parking_lines():
-    """Draw reverse parking guidelines like real car cameras"""
                                                                         
     if not ((car_speed < -0.5) or camera_mode == 4):
         return
@@ -307,8 +284,6 @@ def draw_reverse_parking_lines():
                                                               
     rear_offset = 32
     z_height = 2
-
-    glLineWidth(3)
 
                                                               
     bands = [
@@ -331,7 +306,6 @@ def draw_reverse_parking_lines():
 
                                     
     glColor3f(0.0, 0.8, 1.0)
-    glLineWidth(2)
     glBegin(GL_LINES)
     for i in range(5):
         dist = 20 + i * 25
@@ -375,7 +349,6 @@ def draw_text(x, y, text, font=None):
     glMatrixMode(GL_MODELVIEW)
 
 def draw_ui_panel():
-    """Draw black UI panel at bottom of screen"""
     glDisable(GL_DEPTH_TEST)
     glMatrixMode(GL_PROJECTION)
     glPushMatrix()
@@ -397,7 +370,6 @@ def draw_ui_panel():
     
                  
     glColor3f(0.3, 0.3, 0.3)
-    glLineWidth(2)
     glBegin(GL_LINE_LOOP)
     glVertex2f(0, 200)
     glVertex2f(1000, 200)
@@ -543,14 +515,13 @@ def draw_obstacles():
     
                                                                 
     if cheat_mode:
-        glColor3f(1, 1, 1)                  
-        glLineWidth(3)
+        glColor3f(1, 1, 1)
         for obstacle in obstacles:
             x, z, width, depth, height = obstacle
             glPushMatrix()
             glTranslatef(x, z, height/2)
-            glScalef(width + 10, depth + 10, height + 10)
-            glutWireCube(1)
+            glPushMatrix(); glScalef(width + 10, 2, height + 10); glutSolidCube(1); glPopMatrix()
+            glPushMatrix(); glScalef(2, depth + 10, height + 10); glutSolidCube(1); glPopMatrix()
             glPopMatrix()
 
 def draw_parking_spots():
@@ -559,8 +530,7 @@ def draw_parking_spots():
     spot_width, spot_depth = get_parking_spot_size()
     
     if cheat_mode:
-        glColor3f(0, 1, 0)                                     
-        glLineWidth(5)                 
+        glColor3f(0, 1, 0)
     else:
                                                
         if current_level == 1:
@@ -569,7 +539,6 @@ def draw_parking_spots():
             glColor3f(1, 1, 0)                             
         else:
             glColor3f(1, 0.5, 0)                         
-        glLineWidth(3)
     
     for spot_x, spot_z in parking_spots:
         glBegin(GL_LINE_LOOP)
@@ -650,10 +619,7 @@ def draw_grid():
     glutSolidCube(1)
     glPopMatrix()
 
-def check_collision(new_x, new_z):
-    """Check if car collides with obstacles or walls"""
-    
-                                
+def check_collision(new_x, new_z):                           
     if cheat_mode:
         return False
     
@@ -678,7 +644,6 @@ def check_collision(new_x, new_z):
     return False
 
 def check_parking():
-    """Check if car is properly parked in a parking spot"""
     global parked_successfully, parking_timer, current_level, level_completed, game_over
     
     parking_spots = get_current_parking_spots()
@@ -698,16 +663,12 @@ def check_parking():
                     level_completed = True                
                     return
                 return
-
-                                    
     parking_timer = 0
     parked_successfully = False
 
 
-def update_car_physics():
-                                           
+def update_car_physics():                                  
     global car_x, car_z, car_speed, collision_detected, reset_timer, reverse_camera_active
-    
     if reset_timer > 0:
         reset_timer -= 1
         collision_detected = reset_timer > 0
@@ -899,7 +860,9 @@ def keyboardListener(key, x, y):
         cheat_vision = not cheat_vision
     
     elif key == b'e':
-        weather_type = (weather_type + 1) % 4
+        # cycle only Clear(0), Rain(1), Snow(3); skip Fog(2)
+        next_type = (weather_type + 1) % 4
+        weather_type = 3 if next_type == 2 else next_type
     elif key == b'n':
         if current_level < 3:
             current_level += 1
@@ -1064,14 +1027,14 @@ def showScreen():
                           
     draw_weather_effects()
     
-                                                        
+                                                         
     draw_reverse_parking_lines()
     
                    
     draw_ui_panel()
 
                                                     
-    weather_names = ["Clear", "Rain", "Fog", "Snow"]
+    weather_names = ["Clear", "Rain", "(removed)", "Snow"]
     camera_names = ["", "Behind Car", "Top-Down", "Reverse Camera"]                         
     
                  
