@@ -40,6 +40,11 @@ parked_successfully = False
 parking_timer = 0
 required_parking_time = 180 
 level_completed = False
+assigned_spot = None
+show_assignment = False
+show_hint = False
+wrong_spot_timer = 0
+parking_failed_timer = 0
 
 level_names = {1: "EASY", 2: "MEDIUM", 3: "HARD"}
 camera_names = ["", "Behind Car", "Top-Down", "Side View"]
@@ -86,7 +91,6 @@ level_obstacles = {
     ]
 }
 def generate_random_obstacle(level):
-    """Generate a single random obstacle for a level"""
     if level == 2 and len(random_obstacles) < max_random_obstacles:
                                                                                    
         x = random.randint(-400, 400)
@@ -153,7 +157,7 @@ level_parking_spots = {
 }
 
 def init_game():
-    global car_x, car_z, car_angle, car_speed, collision_detected, reset_timer, game_over, camera_rotation, cheat_mode, cheat_vision, parked_successfully, parking_timer, random_obstacles, spawn_timer, reverse_camera_active, level_completed
+    global car_x, car_z, car_angle, car_speed, collision_detected, reset_timer, game_over, camera_rotation, cheat_mode, cheat_vision, parked_successfully, parking_timer, random_obstacles, spawn_timer, reverse_camera_active, level_completed, assigned_spot, show_assignment, show_hint, wrong_spot_timer, parking_failed_timer
     
     car_x = 0
     car_z = 0
@@ -171,9 +175,15 @@ def init_game():
     random_obstacles = []                          
     spawn_timer = 0                     
     reverse_camera_active = False
+    show_assignment = False
+    show_hint = False
+    wrong_spot_timer = 0
+    parking_failed_timer = 0
     
                                   
     init_weather_particles()
+    spots = get_current_parking_spots()
+    assigned_spot = random.choice(spots) if spots else None
     
                                                             
     random.seed(rand_var)                                              
@@ -263,7 +273,7 @@ def draw_weather_effects():
     
     
     elif weather_type == 2:
-        return  # fog removed
+        return
 
 def draw_reverse_parking_lines():
                                                                         
@@ -541,12 +551,25 @@ def draw_parking_spots():
             glColor3f(1, 0.5, 0)                         
     
     for spot_x, spot_z in parking_spots:
+        is_target = (assigned_spot is not None and (spot_x, spot_z) == tuple(assigned_spot))
+        if is_target:
+            glColor3f(0.0, 1.0, 0.0)
+        else:
+            glColor3f(0.6, 0.6, 0.6)
         glBegin(GL_LINE_LOOP)
         glVertex3f(spot_x - spot_width, spot_z - spot_depth, 1)
         glVertex3f(spot_x + spot_width, spot_z - spot_depth, 1)
         glVertex3f(spot_x + spot_width, spot_z + spot_depth, 1)
         glVertex3f(spot_x - spot_width, spot_z + spot_depth, 1)
         glEnd()
+        if is_target:
+            glBegin(GL_LINE_LOOP)
+            inset = 3
+            glVertex3f(spot_x - spot_width + inset, spot_z - spot_depth + inset, 1)
+            glVertex3f(spot_x + spot_width - inset, spot_z - spot_depth + inset, 1)
+            glVertex3f(spot_x + spot_width - inset, spot_z + spot_depth - inset, 1)
+            glVertex3f(spot_x - spot_width + inset, spot_z + spot_depth - inset, 1)
+            glEnd()
         
                                             
         glPushMatrix()
@@ -644,7 +667,7 @@ def check_collision(new_x, new_z):
     return False
 
 def check_parking():
-    global parked_successfully, parking_timer, current_level, level_completed, game_over
+    global parked_successfully, parking_timer, current_level, level_completed, game_over, wrong_spot_timer, parking_failed_timer
     
     parking_spots = get_current_parking_spots()
     spot_width, spot_depth = get_parking_spot_size()
@@ -655,14 +678,19 @@ def check_parking():
         for spot_x, spot_z in parking_spots:
             if (abs(car_x - spot_x) < spot_width - 10 and
                 abs(car_z - spot_z) < spot_depth - 5):
-                
-                parking_timer += 1
-                
-                if parking_timer >= required_parking_time:
-                    parked_successfully = True
-                    level_completed = True                
+                if assigned_spot is not None and (spot_x, spot_z) == tuple(assigned_spot):
+                    parking_timer += 1
+                    if parking_timer >= required_parking_time:
+                        parked_successfully = True
+                        level_completed = True                
+                        return
                     return
-                return
+                else:
+                    wrong_spot_timer = 60
+                    parking_failed_timer = 180
+                    parking_timer = 0
+                    parked_successfully = False
+                    return
     parking_timer = 0
     parked_successfully = False
 
@@ -777,7 +805,7 @@ def cheat_mode_update():
             max_speed = 8
 
 def keyboardListener(key, x, y):
-    global car_speed, car_angle, camera_mode, collision_detected, cheat_mode, cheat_vision, current_level,level_completed, weather_type
+    global car_speed, car_angle, camera_mode, collision_detected, cheat_mode, cheat_vision, current_level,level_completed, weather_type, assigned_spot, show_assignment, show_hint, parking_timer, parked_successfully
     
     if collision_detected and reset_timer <= 0:
         return
@@ -860,7 +888,6 @@ def keyboardListener(key, x, y):
         cheat_vision = not cheat_vision
     
     elif key == b'e':
-        # cycle only Clear(0), Rain(1), Snow(3); skip Fog(2)
         next_type = (weather_type + 1) % 4
         weather_type = 3 if next_type == 2 else next_type
     elif key == b'n':
@@ -871,6 +898,16 @@ def keyboardListener(key, x, y):
         if current_level > 1:
             current_level -= 1
             init_game()
+    elif key == b'j':
+        spots = get_current_parking_spots()
+        assigned_spot = random.choice(spots) if spots else None
+        parking_timer = 0
+        parked_successfully = False
+        level_completed = False
+    elif key == b'k':
+        show_assignment = not show_assignment
+    elif key == b'l':
+        show_hint = not show_hint
 def reset_level():
     global car_x, car_z, car_angle, car_speed, collision_detected
     car_x, car_z = 0, 0
@@ -1019,7 +1056,14 @@ def showScreen():
     draw_grid()
     draw_parking_spots() 
     draw_obstacles()
-    
+    if show_hint and assigned_spot is not None:
+        glDisable(GL_DEPTH_TEST)
+        glColor3f(0.0, 1.0, 0.0)
+        glBegin(GL_LINES)
+        glVertex3f(car_x, car_z, 2)
+        glVertex3f(assigned_spot[0], assigned_spot[1], 2)
+        glEnd()
+        glEnable(GL_DEPTH_TEST)
     if not game_over:
         draw_player()
         draw_collision_effects()
@@ -1049,6 +1093,8 @@ def showScreen():
     
                      
     draw_text(300, 170, f"Weather: {weather_names[weather_type]} (E to change)")
+    if show_assignment and assigned_spot is not None:
+        draw_text(300, 70, f"Assigned Spot: ({assigned_spot[0]}, {assigned_spot[1]}) [J new, K show, L hint]")
     draw_text(300, 150, f"Ground Rotation: {camera_rotation:.0f}°")
     draw_text(300, 130, f"Cheat Mode: {'ON' if cheat_mode else 'OFF'} (C)")
     draw_text(300, 110, f"Cheat Vision: {'ON' if cheat_vision else 'OFF'} (V)")
@@ -1077,8 +1123,19 @@ def showScreen():
                                             
     glColor3f(0.8, 0.8, 0.8)                           
     draw_text(20, 50, "WASD: Move/Turn | 1-3: Cameras (3=Reverse) | E: Weather | R: Reset")
-    draw_text(20, 30, "C: Cheat | V: Enhanced Vision (wider view) | Mouse: Smooth Ground Rotation")
+    draw_text(20, 30, "J: New Assignment | K: Show/Hide Assignment | L: Hint Line to Spot")
     draw_text(20, 10, "Camera 1: Behind Car | Camera 2: Top-Down | Camera 3: Reverse + Parking Lines")
+
+    
+    global wrong_spot_timer
+    if wrong_spot_timer > 0:
+        draw_text(600, 70, "Wrong spot! Park in the assigned one (press K)")
+        wrong_spot_timer -= 1
+
+    global parking_failed_timer
+    if parking_failed_timer > 0 and not level_completed:
+        draw_text(300, 440, "Parking FAILED — Wrong spot")
+        parking_failed_timer -= 1
 
     glutSwapBuffers()
 
